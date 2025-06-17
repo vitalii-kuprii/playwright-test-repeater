@@ -134,9 +134,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
-- 🐛 [Report Issues](https://github.com/playwright-community/playwright-test-repeater/issues)
-- 💡 [Request Features](https://github.com/playwright-community/playwright-test-repeater/issues/new)
-- 📖 [Documentation](https://github.com/playwright-community/playwright-test-repeater#readme)
+- 🐛 [Report Issues](https://github.com/vitalii-kuprii/playwright-test-repeater/issues)
+- 💡 [Request Features](https://github.com/vitalii-kuprii/playwright-test-repeater/issues/new)
+- 📖 [Documentation](https://github.com/vitalii-kuprii/playwright-test-repeater#readme)
 
 ---
 

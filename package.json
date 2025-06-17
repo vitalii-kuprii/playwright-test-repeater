@@ -3,19 +3,19 @@
   "displayName": "Playwright Test Repeater",
   "description": "Repeat Playwright tests multiple times to catch flaky tests with intelligent report merging",
   "version": "1.0.0",
-  "publisher": "playwright-community",
+  "publisher": "VitaliiKuprii",
   "author": {
-    "name": "Playwright Community"
+    "name": "Vitalii Kuprii"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/playwright-community/playwright-test-repeater"
+    "url": "https://github.com/vitalii-kuprii/playwright-test-repeater"
   },
   "bugs": {
-    "url": "https://github.com/playwright-community/playwright-test-repeater/issues"
+    "url": "https://github.com/vitalii-kuprii/playwright-test-repeater/issues"
   },
-  "homepage": "https://github.com/playwright-community/playwright-test-repeater#readme",
+  "homepage": "https://github.com/vitalii-kuprii/playwright-test-repeater#readme",
   "keywords": [
     "playwright",
     "testing",
