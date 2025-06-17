@@ -437,7 +437,12 @@ export class PlaywrightTestRunner {
                 // Add config file if found to use all user settings
                 const configPath = await this.findConfigFilePath(testPath, workspacePath);
                 if (configPath) {
-                    additionalFlags.push('--config', configPath);
+                    // Validate config file syntax before using it
+                    if (await this.isValidConfigFile(configPath)) {
+                        additionalFlags.push('--config', configPath);
+                    } else {
+                        vscode.window.showWarningMessage(`Playwright config file has syntax errors: ${configPath}. Using default settings.`);
+                    }
                 }
                 
                 // Override headed mode if extension setting differs from config
@@ -744,6 +749,45 @@ Average duration: ${this.formatDuration(averageDuration)}
         if (this.currentProcess) {
             treeKill(this.currentProcess.pid!);
             this.currentProcess = null;
+        }
+    }
+
+    private async isValidConfigFile(configPath: string): Promise<boolean> {
+        try {
+            const content = fs.readFileSync(configPath, 'utf8');
+            
+            // Try to parse as JavaScript/TypeScript syntax
+            // Use a simple approach - try to require/import the file in a child process
+            const { spawn } = require('child_process');
+            
+            return new Promise((resolve) => {
+                const nodeProcess = spawn('node', ['-e', `
+                    try {
+                        require('${configPath.replace(/\\/g, '\\\\')}');
+                        console.log('valid');
+                    } catch (error) {
+                        console.log('invalid');
+                    }
+                `], { 
+                    stdio: 'pipe',
+                    timeout: 5000 
+                });
+                
+                let output = '';
+                nodeProcess.stdout.on('data', (data: any) => {
+                    output += data.toString();
+                });
+                
+                nodeProcess.on('close', (code: any) => {
+                    resolve(output.trim() === 'valid');
+                });
+                
+                nodeProcess.on('error', () => {
+                    resolve(false);
+                });
+            });
+        } catch (error) {
+            return false;
         }
     }
 }
