@@ -115,22 +115,47 @@ export class PlaywrightConfigReader {
             // Try to extract basic config values using regex patterns
             const config: PlaywrightConfig = {};
             
-            // Extract headless setting
-            const headlessMatch = content.match(/headless:\s*(true|false)/);
+            // Extract headless setting - handle both literals and expressions
+            const headlessMatch = content.match(/headless:\s*(true|false|!process\.env\[['"`]([^'"`]+)['"`]\])/);
             if (headlessMatch) {
-                config.headless = headlessMatch[1] === 'true';
+                if (headlessMatch[1] === 'true' || headlessMatch[1] === 'false') {
+                    config.headless = headlessMatch[1] === 'true';
+                } else if (headlessMatch[2]) {
+                    // Handle !process.env['VAR'] pattern
+                    const envValue = process.env[headlessMatch[2]];
+                    config.headless = !envValue; // negated, so true env = false headless
+                }
             }
 
-            // Extract use.headless setting (more common)
-            const useHeadlessMatch = content.match(/use:\s*{[^}]*headless:\s*(true|false)/s);
+            // Extract use.headless setting (more common) - handle both literals and expressions
+            const useHeadlessMatch = content.match(/use:\s*{[^}]*headless:\s*(true|false|!process\.env\[['"`]([^'"`]+)['"`]\])/s);
             if (useHeadlessMatch) {
-                config.use = { headless: useHeadlessMatch[1] === 'true' };
+                if (!config.use) config.use = {};
+                if (useHeadlessMatch[1] === 'true' || useHeadlessMatch[1] === 'false') {
+                    config.use.headless = useHeadlessMatch[1] === 'true';
+                } else if (useHeadlessMatch[2]) {
+                    // Handle !process.env['VAR'] pattern
+                    const envValue = process.env[useHeadlessMatch[2]];
+                    config.use.headless = !envValue; // negated, so true env = false headless
+                }
             }
 
-            // Extract timeout
-            const timeoutMatch = content.match(/timeout:\s*(\d+)/);
-            if (timeoutMatch) {
-                config.timeout = parseInt(timeoutMatch[1]);
+            // Extract timeout - find the largest numeric value to avoid capturing 0 from ternary
+            const timeoutMatches = content.match(/timeout:\s*(?:[^:]+:\s*)?([0-9_]+(?:\.[0-9]+)?)/g);
+            if (timeoutMatches) {
+                const numericValues = timeoutMatches.map(match => {
+                    const numMatch = match.match(/([0-9_]+(?:\.[0-9]+)?)$/);
+                    if (numMatch) {
+                        const cleanedValue = numMatch[1].replace(/_/g, '');
+                        return parseInt(cleanedValue);
+                    }
+                    return 0;
+                }).filter(val => val > 0);
+                
+                if (numericValues.length > 0) {
+                    // Use the largest timeout value (likely the actual timeout, not 0 from ternary)
+                    config.timeout = Math.max(...numericValues);
+                }
             }
 
             // Extract retries
@@ -163,24 +188,51 @@ export class PlaywrightConfigReader {
                 config.reporter = reporterMatch[1];
             }
 
-            // Extract expect timeout
-            const expectTimeoutMatch = content.match(/expect:\s*{[^}]*timeout:\s*(\d+)/s);
-            if (expectTimeoutMatch) {
-                config.expect = { timeout: parseInt(expectTimeoutMatch[1]) };
+            // Extract expect timeout - handle ternary expressions by finding largest value
+            const expectTimeoutMatches = content.match(/expect:\s*{[^}]*timeout:\s*(?:[^,}]+)?([0-9_]+(?:\.[0-9]+)?)/gs);
+            if (expectTimeoutMatches) {
+                const numericValues = expectTimeoutMatches.map(match => {
+                    const numMatch = match.match(/([0-9_]+(?:\.[0-9]+)?)(?:[^0-9_]|$)/g);
+                    if (numMatch) {
+                        return numMatch.map(n => {
+                            const cleanedValue = n.replace(/[^0-9_.]/g, '').replace(/_/g, '');
+                            return parseInt(cleanedValue);
+                        }).filter(val => val > 0);
+                    }
+                    return [];
+                }).flat().filter(val => val > 0);
+                
+                if (numericValues.length > 0) {
+                    // Use the largest timeout value (likely the actual timeout, not 0 from ternary)
+                    config.expect = { timeout: Math.max(...numericValues) };
+                }
             }
 
-            // Extract use.actionTimeout
-            const actionTimeoutMatch = content.match(/use:\s*{[^}]*actionTimeout:\s*(\d+)/s);
+            // Extract use.actionTimeout - try multiple patterns to handle different formatting
+            let actionTimeoutMatch = content.match(/use:\s*{[^}]*actionTimeout:\s*([0-9_]+(?:\.[0-9]+)?)/s);
+            if (!actionTimeoutMatch) {
+                // Try alternative pattern for more complex nested structures
+                actionTimeoutMatch = content.match(/actionTimeout:\s*([0-9_]+(?:\.[0-9]+)?)/);
+            }
             if (actionTimeoutMatch) {
                 if (!config.use) config.use = {};
-                config.use.actionTimeout = parseInt(actionTimeoutMatch[1]);
+                // Remove underscores from number literals (e.g., 90_000 -> 90000)
+                const cleanedValue = actionTimeoutMatch[1].replace(/_/g, '');
+                config.use.actionTimeout = parseInt(cleanedValue);
+                
             }
 
-            // Extract use.navigationTimeout
-            const navigationTimeoutMatch = content.match(/use:\s*{[^}]*navigationTimeout:\s*(\d+)/s);
+            // Extract use.navigationTimeout - try multiple patterns to handle different formatting
+            let navigationTimeoutMatch = content.match(/use:\s*{[^}]*navigationTimeout:\s*([0-9_]+(?:\.[0-9]+)?)/s);
+            if (!navigationTimeoutMatch) {
+                // Try alternative pattern for more complex nested structures
+                navigationTimeoutMatch = content.match(/navigationTimeout:\s*([0-9_]+(?:\.[0-9]+)?)/);
+            }
             if (navigationTimeoutMatch) {
                 if (!config.use) config.use = {};
-                config.use.navigationTimeout = parseInt(navigationTimeoutMatch[1]);
+                // Remove underscores from number literals (e.g., 90_000 -> 90000)
+                const cleanedValue = navigationTimeoutMatch[1].replace(/_/g, '');
+                config.use.navigationTimeout = parseInt(cleanedValue);
             }
 
             return Object.keys(config).length > 0 ? config : null;
@@ -389,14 +441,14 @@ export class PlaywrightConfigReader {
     }
 
     // Helper method to determine the effective headless setting
-    getEffectiveHeadless(config: PlaywrightConfig): boolean {
-        // Priority: use.headless > headless > default (true for headless)
+    getEffectiveHeadless(config: PlaywrightConfig): boolean | undefined {
+        // Priority: use.headless > headless > undefined if not set
         if (config.use?.headless !== undefined) {
             return config.use.headless;
         }
         if (config.headless !== undefined) {
             return config.headless;
         }
-        return true; // Default to headless
+        return undefined; // Return undefined when not explicitly set
     }
 }

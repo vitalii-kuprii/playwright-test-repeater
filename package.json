@@ -2,7 +2,7 @@
   "name": "playwright-test-repeater",
   "displayName": "Playwright Test Repeater",
   "description": "Repeat Playwright tests multiple times to catch flaky tests with intelligent report merging",
-  "version": "1.0.2",
+  "version": "1.0.7",
   "publisher": "VitaliiKuprii",
   "icon": "icon.png",
   "author": {

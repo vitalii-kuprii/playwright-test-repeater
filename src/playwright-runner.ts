@@ -445,11 +445,14 @@ export class PlaywrightTestRunner {
                     }
                 }
                 
-                // Override headed mode if extension setting differs from config
-                if (runHeaded && playwrightConfig && this.configReader.getEffectiveHeadless(playwrightConfig)) {
-                    additionalFlags.push('--headed');
-                } else if (!runHeaded && playwrightConfig && !this.configReader.getEffectiveHeadless(playwrightConfig)) {
-                    additionalFlags.push('--headless');
+                // Only add headless flags if no config file is present
+                // When config file is present, let Playwright handle all settings from config
+                if (!configPath) {
+                    if (runHeaded) {
+                        additionalFlags.push('--headed');
+                    } else {
+                        additionalFlags.push('--headless');
+                    }
                 }
                 
                 if (hasPackageJson) {
@@ -754,38 +757,13 @@ Average duration: ${this.formatDuration(averageDuration)}
 
     private async isValidConfigFile(configPath: string): Promise<boolean> {
         try {
+            // For now, just check if file exists and is readable
+            // Playwright CLI will handle the actual validation
             const content = fs.readFileSync(configPath, 'utf8');
             
-            // Try to parse as JavaScript/TypeScript syntax
-            // Use a simple approach - try to require/import the file in a child process
-            const { spawn } = require('child_process');
-            
-            return new Promise((resolve) => {
-                const nodeProcess = spawn('node', ['-e', `
-                    try {
-                        require('${configPath.replace(/\\/g, '\\\\')}');
-                        console.log('valid');
-                    } catch (error) {
-                        console.log('invalid');
-                    }
-                `], { 
-                    stdio: 'pipe',
-                    timeout: 5000 
-                });
-                
-                let output = '';
-                nodeProcess.stdout.on('data', (data: any) => {
-                    output += data.toString();
-                });
-                
-                nodeProcess.on('close', (code: any) => {
-                    resolve(output.trim() === 'valid');
-                });
-                
-                nodeProcess.on('error', () => {
-                    resolve(false);
-                });
-            });
+            // Basic syntax check - ensure it's not empty and has some config structure
+            return content.trim().length > 0 && 
+                   (content.includes('export') || content.includes('module.exports') || content.includes('config'));
         } catch (error) {
             return false;
         }
